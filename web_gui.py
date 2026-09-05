@@ -1,20 +1,28 @@
-"""Simple Flask web GUI for the weather agent.
+# Flask web GUI for the weather agent.
+#
+# Run:
+#   python web_gui.py
+#
+# Then open http://127.0.0.1:5000 in a browser. Type a location and the
+# server calls the LangChain agent defined in app.py and shows the result.
+#
+# Set the PORT env var to override the default (5000):
+#   PORT=8080 python web_gui.py
 
-Run:
-    python web_gui.py
-
-Then open http://127.0.0.1:5000 in a browser.
-"""
 import os
 import sys
 
 from flask import Flask, jsonify, render_template_string, request
 
+# Make sure app.py (in the same directory) is importable.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app import run_agent
 
+# Flask application instance.
 app = Flask(__name__)
 
+# Inline HTML/CSS/JS for the UI. Kept as a single string so this file is
+# self-contained and easy to run with no static-asset setup.
 INDEX_HTML = """
 <!doctype html>
 <html lang="en">
@@ -162,16 +170,26 @@ form.addEventListener('submit', async (e) => {
 
 @app.route("/", methods=["GET"])
 def index():
+    """Serve the single-page UI."""
     return render_template_string(INDEX_HTML)
 
 
 @app.route("/api/weather", methods=["POST"])
 def api_weather():
+    """Handle a weather query from the UI.
+
+    Expects JSON: {"query": "<location>"}.
+    Returns JSON: {"query": ..., "answer": ...} on success,
+    or {"error": "..."} with HTTP 400/500 on failure.
+    """
+    # Read the JSON payload (silent=True so we can return a clean 400 below).
     payload = request.get_json(silent=True) or {}
     query = (payload.get("query") or "").strip()
     if not query:
         return jsonify({"error": "Query is required."}), 400
 
+    # Phrase the user request so the agent is asked to find the location AND
+    # return country + detailed weather (matches the README/GUI promise).
     user_request = (
         f"Find the location '{query}' and give me its current weather, "
         "country, and detailed conditions."
@@ -185,5 +203,7 @@ def api_weather():
 
 
 if __name__ == "__main__":
+    # Local development server. debug=False to avoid the auto-reloader spawning
+    # the agent twice and burning extra tokens.
     port = int(os.environ.get("PORT", "5000"))
     app.run(host="127.0.0.1", port=port, debug=False)
